@@ -254,7 +254,7 @@ phonecomponents|MuteMeButton {
 	iconColorDown   : #FFFFFF;
 }
 
-.mainActionButton, .cameraDisplaySettingsWindowStartBtn {
+.mainActionButton, .cameraDisplaySettingsWindowStartBtn, .guestButton {
 	borderThickness   : 0;
 	color             : #FFFFFF;
 	fillColorUp       : #1070D7;
@@ -581,7 +581,7 @@ views|ClientStatusItemRenderer {
 //------------------------------
 */
 
-chat|AddChatTabBox {
+chat|ChatOptionsTab {
 	verticalGap  : 20;
 	paddingLeft  : 20;
 	paddingRight : 20;
@@ -1186,6 +1186,15 @@ mx|Panel {
 	icon              : Embed(source="assets/swf/v2_skin.swf", symbol="Icon_Trash");
 }
 
+.presentationUploadProgressBarLabel {
+	color                     : #8A9AA7;
+	fontWeight                : "bold";
+	indeterminateMoveInterval : 28;
+	leading                   : 0;
+	paddingTop                : 0;
+	paddingBottom             : 0;
+}
+
 .presentationUploadProgressBar {
 	trackHeight : 12;
 }
@@ -1334,6 +1343,14 @@ mx|Panel {
 
 .slideViewBackground {
 	backgroundColor : #E2E8ED;
+}
+
+.podItemTitle {
+	fontWeight : bold;
+}
+
+.podCurrentPresenter {
+	color : #1070D7;
 }
 
 /*
@@ -1556,6 +1573,7 @@ flexlib|SuperTabNavigator {
 	color                   : #DF2721;
 	iconColor               : #DF2721;
 	iconVisible             : true;
+	skin                    : ClassReference("org.bigbluebutton.skins.TabSkin");
 	tabCloseButtonStyleName : "tabCloseButton";
 }
 
@@ -1630,6 +1648,7 @@ users|UsersWindow {
 	iconSettings    : Embed(source="assets/swf/v2_skin.swf", symbol="Icon_User_Settings");
 	iconClearStatus : Embed(source="assets/swf/v2_skin.swf", symbol="Icon_User_ClearStatus");
 	iconRooms       : Embed(source="assets/swf/v2_skin.swf", symbol="Icon_User_Rooms");
+	horizontalAlign : center;
 }
 
 users|StatusItemRenderer {
@@ -1684,6 +1703,13 @@ users|NameItemRenderer {
 
 .usersGridStyle {
 	borderStyle : none;
+}
+
+.guestBoxStyle {
+	paddingLeft   : 8;
+	paddingRight  : 8;
+	paddingTop    : 6;
+	paddingBottom : 4;
 }
 
 users|EmojiGrid {

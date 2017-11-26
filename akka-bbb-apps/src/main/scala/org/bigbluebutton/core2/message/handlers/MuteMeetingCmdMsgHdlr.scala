@@ -1,83 +1,66 @@
 package org.bigbluebutton.core2.message.handlers
 
-import org.bigbluebutton.SystemConfiguration
 import org.bigbluebutton.common2.msgs._
-import org.bigbluebutton.core.apps.PermissionCheck
+import org.bigbluebutton.core.apps.{ PermissionCheck, RightsManagementTrait }
 import org.bigbluebutton.core.models.{ VoiceUserState, VoiceUsers }
 import org.bigbluebutton.core.running.{ MeetingActor, OutMsgRouter }
 import org.bigbluebutton.core2.MeetingStatus2x
 
-trait MuteMeetingCmdMsgHdlrDefault {
-  def handleMuteMeetingCmdMsg(msg: MuteMeetingCmdMsg): Unit = {}
-}
-
-trait MuteMeetingCmdMsgHdlrCheckPerm extends MuteMeetingCmdMsgHdlrDefault with SystemConfiguration {
+trait MuteMeetingCmdMsgHdlr extends RightsManagementTrait {
   this: MeetingActor =>
 
   val outGW: OutMsgRouter
 
-  override def handleMuteMeetingCmdMsg(msg: MuteMeetingCmdMsg): Unit = {
-    val isAllowed = PermissionCheck.isAllowed(
-      PermissionCheck.MOD_LEVEL,
-      PermissionCheck.PRESENTER_LEVEL, liveMeeting.users2x, msg.header.userId
-    )
+  def handleMuteMeetingCmdMsg(msg: MuteMeetingCmdMsg): Unit = {
 
-    if (applyPermissionCheck && !isAllowed) {
+    if (permissionFailed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
       val meetingId = liveMeeting.props.meetingProp.intId
       val reason = "No permission to mute meeting."
-      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.body.mutedBy, reason, outGW)
+      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, outGW, liveMeeting)
     } else {
-      super.handleMuteMeetingCmdMsg(msg)
-    }
-  }
-}
+      def build(meetingId: String, userId: String, muted: Boolean, mutedBy: String): BbbCommonEnvCoreMsg = {
+        val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
+        val envelope = BbbCoreEnvelope(MeetingMutedEvtMsg.NAME, routing)
+        val header = BbbClientMsgHeader(MeetingMutedEvtMsg.NAME, meetingId, userId)
 
-trait MuteMeetingCmdMsgHdlr extends MuteMeetingCmdMsgHdlrDefault {
-  this: MeetingActor =>
+        val body = MeetingMutedEvtMsgBody(muted, mutedBy)
+        val event = MeetingMutedEvtMsg(header, body)
 
-  val outGW: OutMsgRouter
+        BbbCommonEnvCoreMsg(envelope, event)
+      }
 
-  override def handleMuteMeetingCmdMsg(msg: MuteMeetingCmdMsg): Unit = {
+      def muteUserInVoiceConf(vu: VoiceUserState, mute: Boolean): Unit = {
+        val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, props.meetingProp.intId, vu.intId)
+        val envelope = BbbCoreEnvelope(MuteUserInVoiceConfSysMsg.NAME, routing)
+        val header = BbbCoreHeaderWithMeetingId(MuteUserInVoiceConfSysMsg.NAME, props.meetingProp.intId)
 
-    def build(meetingId: String, userId: String, muted: Boolean, mutedBy: String): BbbCommonEnvCoreMsg = {
-      val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, meetingId, userId)
-      val envelope = BbbCoreEnvelope(MeetingMutedEvtMsg.NAME, routing)
-      val header = BbbClientMsgHeader(MeetingMutedEvtMsg.NAME, meetingId, userId)
+        val body = MuteUserInVoiceConfSysMsgBody(props.voiceProp.voiceConf, vu.voiceUserId, mute)
+        val event = MuteUserInVoiceConfSysMsg(header, body)
+        val msgEvent = BbbCommonEnvCoreMsg(envelope, event)
 
-      val body = MeetingMutedEvtMsgBody(muted, mutedBy)
-      val event = MeetingMutedEvtMsg(header, body)
+        outGW.send(msgEvent)
 
-      BbbCommonEnvCoreMsg(envelope, event)
-    }
+      }
 
-    def muteUserInVoiceConf(vu: VoiceUserState, mute: Boolean): Unit = {
-      val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, props.meetingProp.intId, vu.intId)
-      val envelope = BbbCoreEnvelope(MuteUserInVoiceConfSysMsg.NAME, routing)
-      val header = BbbCoreHeaderWithMeetingId(MuteUserInVoiceConfSysMsg.NAME, props.meetingProp.intId)
+      if (msg.body.mute != MeetingStatus2x.isMeetingMuted(liveMeeting.status)) {
+        if (msg.body.mute) {
+          MeetingStatus2x.muteMeeting(liveMeeting.status)
+        } else {
+          MeetingStatus2x.unmuteMeeting(liveMeeting.status)
+        }
 
-      val body = MuteUserInVoiceConfSysMsgBody(props.voiceProp.voiceConf, vu.voiceUserId, mute)
-      val event = MuteUserInVoiceConfSysMsg(header, body)
-      val msgEvent = BbbCommonEnvCoreMsg(envelope, event)
+        val muted = MeetingStatus2x.isMeetingMuted(liveMeeting.status)
+        val meetingMutedEvent = build(props.meetingProp.intId, msg.body.mutedBy, muted, msg.body.mutedBy)
 
-      outGW.send(msgEvent)
+        outGW.send(meetingMutedEvent)
 
-    }
-
-    if (MeetingStatus2x.isMeetingMuted(liveMeeting.status)) {
-      MeetingStatus2x.unmuteMeeting(liveMeeting.status)
-    } else {
-      MeetingStatus2x.muteMeeting(liveMeeting.status)
-    }
-
-    val muted = MeetingStatus2x.isMeetingMuted(liveMeeting.status)
-    val meetingMutedEvent = build(props.meetingProp.intId, msg.body.mutedBy, muted, msg.body.mutedBy)
-
-    outGW.send(meetingMutedEvent)
-
-    VoiceUsers.findAll(liveMeeting.voiceUsers) foreach { vu =>
-      if (!vu.listenOnly) {
-        muteUserInVoiceConf(vu, muted)
+        VoiceUsers.findAll(liveMeeting.voiceUsers) foreach { vu =>
+          if (!vu.listenOnly) {
+            muteUserInVoiceConf(vu, muted)
+          }
+        }
       }
     }
+
   }
 }

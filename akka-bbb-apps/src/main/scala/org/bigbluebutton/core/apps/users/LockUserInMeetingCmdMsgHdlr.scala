@@ -3,9 +3,9 @@ package org.bigbluebutton.core.apps.users
 import org.bigbluebutton.common2.msgs._
 import org.bigbluebutton.core.models.Users2x
 import org.bigbluebutton.core.running.{ MeetingActor, OutMsgRouter }
-import org.bigbluebutton.core.apps.PermissionCheck
+import org.bigbluebutton.core.apps.{ PermissionCheck, RightsManagementTrait }
 
-trait LockUserInMeetingCmdMsgHdlr {
+trait LockUserInMeetingCmdMsgHdlr extends RightsManagementTrait {
   this: MeetingActor =>
 
   val outGW: OutMsgRouter
@@ -22,10 +22,10 @@ trait LockUserInMeetingCmdMsgHdlr {
       BbbCommonEnvCoreMsg(envelope, event)
     }
 
-    if (applyPermissionCheck && !PermissionCheck.isAllowed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
+    if (permissionFailed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
       val meetingId = liveMeeting.props.meetingProp.intId
       val reason = "No permission to lock user in meeting."
-      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, outGW)
+      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, outGW, liveMeeting)
     } else {
       for {
         uvo <- Users2x.setUserLocked(liveMeeting.users2x, msg.body.userId, msg.body.lock)

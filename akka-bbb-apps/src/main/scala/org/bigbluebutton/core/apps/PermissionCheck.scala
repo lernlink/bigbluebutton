@@ -1,8 +1,41 @@
 package org.bigbluebutton.core.apps
 
-import org.bigbluebutton.core.models.{ Roles, UserState, Users2x }
-import org.bigbluebutton.core.running.OutMsgRouter
+import org.bigbluebutton.SystemConfiguration
+import org.bigbluebutton.core.apps.users.UsersApp
+import org.bigbluebutton.core.models.{ OldPresenter, Roles, UserState, Users2x }
+import org.bigbluebutton.core.running.{ LiveMeeting, OutMsgRouter }
 import org.bigbluebutton.core2.message.senders.{ MsgBuilder, Sender }
+
+trait RightsManagementTrait extends SystemConfiguration {
+  /**
+   * This method will check if the user that issued the command has the correct permissions.
+   *
+   * Example of the permissions level are "AUTHENTICATED", "MODERATOR" and "GUEST". Example of roles
+   * are "VIEWER" and "PRESENTER".
+   *
+   * @param permissionLevel Lowest permission needed to have access.
+   * @param roleLevel Lowest role needed to have access.
+   * @return true allows API to execute, false denies executing API
+   */
+  def permissionFailed(permissionLevel: Int, roleLevel: Int, users: Users2x, userId: String): Boolean = {
+    if (applyPermissionCheck) {
+      !PermissionCheck.isAllowed(permissionLevel, roleLevel, users, userId)
+    } else {
+      false
+    }
+  }
+
+  def filterPresentationMessage(users: Users2x, userId: String): Boolean = {
+    // Check if the message are delayed presentation messages from the previous presenter
+    // after a switch presenter has been made. ralam nov 22, 2017
+    users.purgeOldPresenters()
+    val now = System.currentTimeMillis()
+    users.findOldPresenter(userId) match {
+      case Some(op) => now - op.changedPresenterOn < 5000
+      case None     => false
+    }
+  }
+}
 
 object PermissionCheck {
 
@@ -40,23 +73,29 @@ object PermissionCheck {
   def isAllowed(permissionLevel: Int, roleLevel: Int, users: Users2x, userId: String): Boolean = {
     Users2x.findWithIntId(users, userId) match {
       case Some(user) =>
-        println("permissionToLevel = " + permissionToLevel(user) + " permissionLevel=" + permissionLevel)
         val permLevelCheck = permissionToLevel(user) >= permissionLevel
-        println("roleToLevel = " + roleToLevel(users, user) + " roleLevel=" + roleLevel)
         val roleLevelCheck = roleToLevel(users, user) >= roleLevel
-
-        println("PERMLEVELCHECK = " + permLevelCheck + " ROLELEVELCHECK=" + roleLevelCheck)
         permLevelCheck && roleLevelCheck
       case None => false
     }
 
   }
 
-  def ejectUserForFailedPermission(meetingId: String, userId: String, reason: String, outGW: OutMsgRouter): Unit = {
+  def ejectUserForFailedPermission(meetingId: String, userId: String, reason: String,
+                                   outGW: OutMsgRouter, liveMeeting: LiveMeeting): Unit = {
     val ejectedBy = "SYSTEM"
 
-    Sender.sendUserEjectedFromMeetingClientEvtMsg(meetingId, userId, ejectedBy, reason, outGW)
+    UsersApp.ejectUserFromMeeting(outGW, liveMeeting, userId, ejectedBy, reason)
     // send a system message to force disconnection
-    Sender.sendUserEjectedFromMeetingSystemMsg(meetingId, userId, ejectedBy, outGW)
+    Sender.sendDisconnectClientSysMsg(meetingId, userId, ejectedBy, outGW)
   }
+
+  def addOldPresenter(users: Users2x, userId: String): OldPresenter = {
+    users.addOldPresenter(userId)
+  }
+
+  def removeOldPresenter(users: Users2x, userId: String): Option[OldPresenter] = {
+    users.removeOldPresenter(userId)
+  }
+
 }

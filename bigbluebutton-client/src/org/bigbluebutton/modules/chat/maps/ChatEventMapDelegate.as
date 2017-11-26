@@ -25,7 +25,12 @@ package org.bigbluebutton.modules.chat.maps {
   import org.bigbluebutton.common.events.OpenWindowEvent;
   import org.bigbluebutton.core.Options;
   import org.bigbluebutton.core.model.LiveMeeting;
+  import org.bigbluebutton.modules.chat.events.FocusOnChatBoxEvent;
+  import org.bigbluebutton.modules.chat.events.GroupChatBoxClosedEvent;
+  import org.bigbluebutton.modules.chat.events.NewGroupChatMessageEvent;
+  import org.bigbluebutton.modules.chat.events.OpenChatBoxEvent;
   import org.bigbluebutton.modules.chat.events.PrivateGroupChatCreatedEvent;
+  import org.bigbluebutton.modules.chat.events.PublicChatMessageEvent;
   import org.bigbluebutton.modules.chat.model.ChatModel;
   import org.bigbluebutton.modules.chat.model.ChatOptions;
   import org.bigbluebutton.modules.chat.model.GroupChat;
@@ -97,10 +102,22 @@ package org.bigbluebutton.modules.chat.maps {
       }
     }
     
+    private function findChatBoxMapper(chatId: String):GroupChatBoxMapper {
+      for (var i:int=0; i<_windowMapper.length; i++) {
+        var wMapper: GroupChatWindowMapper = _windowMapper[i];
+        var gBoxMapper: GroupChatBoxMapper = wMapper.findChatBoxMapper(chatId);
+        if (gBoxMapper != null) return gBoxMapper;
+      }
+      
+      return null;
+    }
+    
     private function openChatBoxForPrivateChat(chatId: String, gc: GroupChat):void {
       // Setup a tracker for the state of this chat.
       var gcBoxMapper:GroupChatBoxMapper = new GroupChatBoxMapper(chatId);
       gcBoxMapper.chatBoxOpen = true;
+      
+      // By default we put all private chats on the main chat window. (ralam nov 5, 2017)
       var winMapper:GroupChatWindowMapper = findGroupChatWindowMapper(MAIN_CHAT_WINID);
       winMapper.addChatBox(gcBoxMapper);
       
@@ -134,8 +151,24 @@ package org.bigbluebutton.modules.chat.maps {
           openChatBoxForPrivateChat(chatId, gc);
         }
       }
-    }
-    
+	}
+
+	public function handleOpenChatBoxEvent(event:OpenChatBoxEvent):void {
+		var gc:GroupChat = LiveMeeting.inst().chats.getGroupChat(event.chatId);
+		if (gc != null) {
+			var gboxMapper:GroupChatBoxMapper = findChatBoxMapper(event.chatId);
+			if (gboxMapper != null) {
+				if (gboxMapper.isChatBoxOpen()) {
+					globalDispatcher.dispatchEvent(new FocusOnChatBoxEvent(event.chatId));
+				} else if (gc.access == GroupChat.PRIVATE) {
+					openChatBoxForPrivateChat(event.chatId, gc);
+				}
+			} else {
+				createNewGroupChat(event.chatId);
+			}
+		}
+	}
+
     private function getChatOptions():void {
       chatOptions = Options.getOptions(ChatOptions) as ChatOptions;
     }
@@ -148,8 +181,32 @@ package org.bigbluebutton.modules.chat.maps {
       }
     }
     
+    public function handleNewGroupChatMessageEvent(event: NewGroupChatMessageEvent):void {
+      var gc:GroupChat = LiveMeeting.inst().chats.getGroupChat(event.chatId);
+      if (gc != null && gc.access == GroupChat.PRIVATE) {
+        var gboxMapper: GroupChatBoxMapper = findChatBoxMapper(event.chatId);
+        if (gboxMapper == null) {
+          openChatBoxForPrivateChat(event.chatId, gc);
+        }
+      }
+      
+      var pcEvent:PublicChatMessageEvent = new PublicChatMessageEvent(event.chatId, event.msg);
+      globalDispatcher.dispatchEvent(pcEvent);
+    }
+    
+    public function chatBoxClosed(event: GroupChatBoxClosedEvent):void {
+      var winMapper:GroupChatWindowMapper = findGroupChatWindowMapper(event.windowId);
+      if (winMapper != null) {
+        var chatBox: GroupChatBoxMapper = winMapper.findChatBoxMapper(event.chatId);
+        if (chatBox != null) {
+          winMapper.removeChatBox(event.chatId);
+        } else {
+        }
+      }
+    }
+    
     private function openChatWindow(window:ChatWindow):void {
-      // Use the GLobal Dispatcher so that this message will be heard by the
+      // Use the Global Dispatcher so that this message will be heard by the
       // main application.		   	
       var event:OpenWindowEvent = new OpenWindowEvent(OpenWindowEvent.OPEN_WINDOW_EVENT);
       event.window = window; 

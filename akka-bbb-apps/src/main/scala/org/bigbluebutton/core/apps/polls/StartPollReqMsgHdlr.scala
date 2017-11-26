@@ -6,8 +6,9 @@ import org.bigbluebutton.core.bus.MessageBus
 import org.bigbluebutton.core.domain.MeetingState2x
 import org.bigbluebutton.core.models.Polls
 import org.bigbluebutton.core.running.LiveMeeting
+import org.bigbluebutton.core.apps.{ PermissionCheck, RightsManagementTrait }
 
-trait StartPollReqMsgHdlr {
+trait StartPollReqMsgHdlr extends RightsManagementTrait {
   this: PollApp2x =>
 
   def handle(msg: StartPollReqMsg, state: MeetingState2x, liveMeeting: LiveMeeting, bus: MessageBus): Unit = {
@@ -23,10 +24,16 @@ trait StartPollReqMsgHdlr {
       bus.outGW.send(msgEvent)
     }
 
-    for {
-      pvo <- Polls.handleStartPollReqMsg(state, msg.header.userId, msg.body.pollId, msg.body.pollType, liveMeeting)
-    } yield {
-      broadcastEvent(msg, pvo)
+    if (permissionFailed(PermissionCheck.GUEST_LEVEL, PermissionCheck.PRESENTER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
+      val meetingId = liveMeeting.props.meetingProp.intId
+      val reason = "No permission to start poll."
+      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, bus.outGW, liveMeeting)
+    } else {
+      for {
+        pvo <- Polls.handleStartPollReqMsg(state, msg.header.userId, msg.body.pollId, msg.body.pollType, liveMeeting)
+      } yield {
+        broadcastEvent(msg, pvo)
+      }
     }
   }
 }

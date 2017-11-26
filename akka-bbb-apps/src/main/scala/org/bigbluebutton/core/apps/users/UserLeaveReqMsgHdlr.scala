@@ -2,7 +2,7 @@ package org.bigbluebutton.core.apps.users
 
 import org.bigbluebutton.common2.msgs._
 import org.bigbluebutton.core.domain.{ MeetingExpiryTracker, MeetingState2x }
-import org.bigbluebutton.core.models.{ Users2x, VoiceUserState, VoiceUsers }
+import org.bigbluebutton.core.models.Users2x
 import org.bigbluebutton.core.running.{ LiveMeeting, MeetingActor, OutMsgRouter }
 import org.bigbluebutton.core.util.TimeUtil
 import org.bigbluebutton.core2.MeetingStatus2x
@@ -30,7 +30,7 @@ trait UserLeaveReqMsgHdlr {
       outGW.send(userLeftMeetingEvent)
 
       if (u.presenter) {
-        automaticallyAssignPresenter(outGW, liveMeeting)
+        UsersApp.automaticallyAssignPresenter(outGW, liveMeeting)
 
         // request screenshare to end
         screenshareApp2x.handleScreenshareStoppedVoiceConfEvtMsg(
@@ -46,26 +46,6 @@ trait UserLeaveReqMsgHdlr {
       if (Users2x.userIsInPresenterGroup(liveMeeting.users2x, u.intId)) {
         Users2x.removeUserFromPresenterGroup(liveMeeting.users2x, u.intId)
         outGW.send(buildRemoveUserFromPresenterGroup(liveMeeting.props.meetingProp.intId, u.intId, u.intId))
-      }
-
-      def broadcastEvent(vu: VoiceUserState): Unit = {
-        val routing = Routing.addMsgToClientRouting(MessageTypes.BROADCAST_TO_MEETING, liveMeeting.props.meetingProp.intId,
-          vu.intId)
-        val envelope = BbbCoreEnvelope(UserLeftVoiceConfToClientEvtMsg.NAME, routing)
-        val header = BbbClientMsgHeader(UserLeftVoiceConfToClientEvtMsg.NAME, liveMeeting.props.meetingProp.intId, vu.intId)
-
-        val body = UserLeftVoiceConfToClientEvtMsgBody(voiceConf = liveMeeting.props.voiceProp.voiceConf, intId = vu.intId, voiceUserId = vu.voiceUserId)
-
-        val event = UserLeftVoiceConfToClientEvtMsg(header, body)
-        val msgEvent = BbbCommonEnvCoreMsg(envelope, event)
-        outGW.send(msgEvent)
-      }
-
-      for {
-        user <- VoiceUsers.findWithIntId(liveMeeting.voiceUsers, msg.body.userId)
-      } yield {
-        VoiceUsers.removeWithIntId(liveMeeting.voiceUsers, user.intId)
-        broadcastEvent(user)
       }
     }
 

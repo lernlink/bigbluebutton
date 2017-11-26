@@ -21,12 +21,11 @@ package org.bigbluebutton.modules.present.managers
 	import com.asfusion.mate.events.Dispatcher;
 	
 	import flash.display.DisplayObject;
-	import flash.geom.Point;
-	
+  import flash.geom.Point;
 	import mx.collections.ArrayCollection;
 	import mx.core.FlexGlobals;
 	
-	import org.bigbluebutton.common.IBbbModuleWindow;
+	import org.as3commons.lang.StringUtils;
 	import org.bigbluebutton.common.events.CloseWindowEvent;
 	import org.bigbluebutton.common.events.OpenWindowEvent;
 	import org.bigbluebutton.core.Options;
@@ -61,7 +60,7 @@ package org.bigbluebutton.modules.present.managers
 		}
 
 		public function handleStartModuleEvent(e:PresentModuleEvent):void{
-			if (winManager.isEmpty()) {
+			if (!winManager.isEmpty()) { 
 				return;
 			}
 			
@@ -78,50 +77,37 @@ package org.bigbluebutton.modules.present.managers
 
 		public function handleAddPresentationPod(e: NewPresentationPodCreated): void {
 			var podId: String = e.podId;
-			var ownerId: String = e.ownerId;
+			var presenterId: String = e.presenterId;
 
-			if (podId == PresentationPodManager.DEFAULT_POD_ID && winManager.containsPodId(podId)) {
-				// update model
-				podsManager.updateOwnershipOfDefaultPod(ownerId);
-				var defWindow: PresentationWindow = winManager.findWindowByPodId(PresentationPodManager.DEFAULT_POD_ID);
-				defWindow.setOwnerId(ownerId);
-			} else {
-				if (ownerId == "") {
-					podsManager.requestDefaultPresentationPod();
-				}
-				if(winManager.containsPodId(podId)) {
-					// remove pod and replace with the updated version
-					handlePresentationPodRemovedHelper(podId, ownerId);
-				}
+			if(winManager.containsPodId(podId)) {
+				// remove pod and replace with the updated version
+				handlePresentationPodRemovedHelper(podId);
+			}
 
-				var newWindow:PresentationWindow = new PresentationWindow();
-				newWindow.onPodCreated(podId, ownerId);
-				newWindow.visible = true;
-				newWindow.showControls = presentOptions.showWindowControls;
+			var newWindow:PresentationWindow = new PresentationWindow();
+			newWindow.onPodCreated(podId, presenterId);
 
-				var selectedWinId:String = winManager.addWindow(podId, newWindow, podId == PresentationPodManager.DEFAULT_POD_ID);
+			var selectedWinId:String = winManager.addWindow(podId, newWindow, podId == PresentationPodManager.DEFAULT_POD_ID);
 
-				if (selectedWinId != null) {
-					newWindow.setWindowId(selectedWinId);
+			if (selectedWinId != null) {
+				newWindow.setWindowId(selectedWinId);
 
-					var openEvent:OpenWindowEvent = new OpenWindowEvent(OpenWindowEvent.OPEN_WINDOW_EVENT);
-					openEvent.window = newWindow;
-					globalDispatcher.dispatchEvent(openEvent);
+				var openEvent:OpenWindowEvent = new OpenWindowEvent(OpenWindowEvent.OPEN_WINDOW_EVENT);
+				openEvent.window = newWindow;
+				globalDispatcher.dispatchEvent(openEvent);
 
-					podsManager.handleAddPresentationPod(podId, ownerId);
-				}
+				podsManager.handleAddPresentationPod(podId);
 			}
 		}
 
 		public function handlePresentationPodRemoved(e: PresentationPodRemoved): void {
 			var podId: String = e.podId;
-			var ownerId: String = e.ownerId;
 
-			handlePresentationPodRemovedHelper(podId, ownerId);
+			handlePresentationPodRemovedHelper(podId);
 		}
 
-		private function handlePresentationPodRemovedHelper(podId: String, ownerId: String): void {
-			podsManager.handlePresentationPodRemoved(podId, ownerId);
+		private function handlePresentationPodRemovedHelper(podId: String): void {
+			podsManager.handlePresentationPodRemoved(podId);
 
 			var destroyWindow:PresentationWindow = winManager.findWindowByPodId(podId);
 			if (destroyWindow != null) {
@@ -152,6 +138,7 @@ package org.bigbluebutton.modules.present.managers
 
 
 		public function handleOpenUploadWindow(e:UploadEvent):void {
+			// Never use "center" true with FileUploadWindow
 			var uploadWindow : FileUploadWindow = PopUpUtil.createModalPopUp(FlexGlobals.topLevelApplication as DisplayObject, FileUploadWindow, false) as FileUploadWindow;
 			if (uploadWindow) {
 				uploadWindow.maxFileSize = e.maxFileSize;
@@ -172,15 +159,7 @@ package org.bigbluebutton.modules.present.managers
 		}
 
 		public function handleOpenDownloadWindow():void {
-			var downloadWindow:FileDownloadWindow = PopUpUtil.createModalPopUp(FlexGlobals.topLevelApplication as DisplayObject, FileDownloadWindow, false) as FileDownloadWindow;
-			if (downloadWindow) {
-				var point1:Point = new Point();
-				point1.x = FlexGlobals.topLevelApplication.width / 2;
-				point1.y = FlexGlobals.topLevelApplication.height / 2;
-
-				downloadWindow.x = point1.x - (downloadWindow.width/2);
-				downloadWindow.y = point1.y - (downloadWindow.height/2);
-			}
+			PopUpUtil.createModalPopUp(FlexGlobals.topLevelApplication as DisplayObject, FileDownloadWindow, true) as FileDownloadWindow;
 		}
 
 		public function handleCloseDownloadWindow():void {

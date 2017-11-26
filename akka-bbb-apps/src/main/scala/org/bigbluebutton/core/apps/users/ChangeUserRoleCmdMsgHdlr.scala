@@ -3,19 +3,19 @@ package org.bigbluebutton.core.apps.users
 import org.bigbluebutton.common2.msgs._
 import org.bigbluebutton.core.models.{ Roles, Users2x }
 import org.bigbluebutton.core.running.{ LiveMeeting, OutMsgRouter }
-import org.bigbluebutton.core.apps.PermissionCheck
+import org.bigbluebutton.core.apps.{ PermissionCheck, RightsManagementTrait }
 
-trait ChangeUserRoleCmdMsgHdlr {
+trait ChangeUserRoleCmdMsgHdlr extends RightsManagementTrait {
   this: UsersApp =>
 
   val liveMeeting: LiveMeeting
   val outGW: OutMsgRouter
 
   def handleChangeUserRoleCmdMsg(msg: ChangeUserRoleCmdMsg) {
-    if (applyPermissionCheck && !PermissionCheck.isAllowed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
+    if (permissionFailed(PermissionCheck.MOD_LEVEL, PermissionCheck.VIEWER_LEVEL, liveMeeting.users2x, msg.header.userId)) {
       val meetingId = liveMeeting.props.meetingProp.intId
       val reason = "No permission to change user role in meeting."
-      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, outGW)
+      PermissionCheck.ejectUserForFailedPermission(meetingId, msg.header.userId, reason, outGW, liveMeeting)
     } else {
       for {
         uvo <- Users2x.changeRole(liveMeeting.users2x, msg.body.userId, msg.body.role)

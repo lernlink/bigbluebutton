@@ -30,10 +30,12 @@
 			uri="rtmp://HOST/bigbluebutton"
 			dependsOn="UsersModule"
 			privateEnabled="true"
+			groupEnabled="true"
 			fontSize="14"
 			baseTabIndex="801"
 			colorPickerIsVisible="false"
 			maxMessageLength="1024"
+			maxNumWindows="9"
 		/>
 
 		<module name="UsersModule" url="http://HOST/client/UsersModule.swf?v=VERSION"
@@ -42,6 +44,7 @@
 			enableEmojiStatus="true"
 			enableSettingsButton="true"
 			enableGuestUI="false"
+			guestSoftMode="false"
 			moderatorUnmute="true"
 			baseTabIndex="301"
 		/>
@@ -112,7 +115,6 @@
 			baseTabIndex="501"
 			maxFileSize="30"
 			enableDownload="true"
-			maxNumWindows="9"
 		/>
 
 		<module name="CaptionModule" url="http://HOST/client/CaptionModule.swf?v=VERSION"
